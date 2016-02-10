@@ -8,6 +8,7 @@
 #include "../object_wrapper.h"
 #include "cpu_moments.h"
 #include "cpu_acc_transform.hpp"
+#include <cmath.h>
 
 using namespace std;
 using namespace spatial_cell;
@@ -55,10 +56,9 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
    // scale rho for hall term, if user requests
    const Real EPSILON = 1e10 * numeric_limits<Real>::min();
    const Real rho = spatial_cell->parameters[CellParams::RHO_V] + EPSILON;
+   #warning Hall term assumes electron charge density is  equal to current ion population charge density. FIX for multiple species!!
    const Real hallRho =  (rho <= Parameters::hallMinimumRho ) ? Parameters::hallMinimumRho : rho ;
-   
-   #warning This should be electron charge density!
-   const Real hallPrefactor = 1.0 / (physicalconstants::MU_0 * hallRho * physicalconstants::CHARGE );
+   const Real hallPrefactor = std::copysign(1.0, particleSpecies[popID].charge) / (physicalconstants::MU_0 * hallRho * physicalconstants::CHARGE );
 
    Eigen::Matrix<Real,3,1> bulk_velocity(spatial_cell->parameters[CellParams::RHOVX_V]/rho,
                                          spatial_cell->parameters[CellParams::RHOVY_V]/rho,
@@ -68,7 +68,7 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
    Transform<Real,3,Affine> total_transform(Matrix<Real, 4, 4>::Identity()); //CONTINUE
 
    if (Parameters::propagatePotential == true) {
-   #warning Electric acceleration works for Poisson only atm
+      // Electric acceleration works for Poisson only atm
       Real* E = &(spatial_cell->parameters[CellParams::EXVOL]);
 
       const Real q_per_m = getObjectWrapper().particleSpecies[popID].charge 
@@ -77,30 +77,6 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       total_transform(0,3) = CONST * E[0];
       total_transform(1,3) = CONST * E[1];
       total_transform(2,3) = CONST * E[2];
-
-      // Evaluate max dt for acceleration due to electric field.
-      // The criteria is that CFL condition due to spatial translations 
-      // must not be broken.
-      
-      /*
-      // Compute how much we can increase the dt for this species until
-      // spatial CFL breaks
-      Real dt_max_transl = spatial_cell->get_max_r_dt(popID);
-      Real CFL_transl = Parameters::dt / dt_max_transl;
-      CFL_transl = min(1.0,1-CFL_transl);
-
-      // For simplicity just take the max value of electric field
-      Real E_max = max(fabs(E[0]),max(fabs(E[1]),fabs(E[2])));
-      E_max = max(E_max,1e-20);
-
-      // ... and the minimum cell size
-      Real dx_min = min(spatial_cell->parameters[CellParams::DX],spatial_cell->parameters[CellParams::DY]);
-      dx_min = min(dx_min,spatial_cell->parameters[CellParams::DZ]);
-
-      // Compute max dt due to electric acceleration
-      Real dt_max_acc = sqrt(CFL_transl*dx_min/(fabs(q_per_m)*E_max));
-      spatial_cell->set_max_v_dt(popID,dt_max_acc);
-      //spatial_cell->set_max_v_dt(popID,Parameters::dt);*/
       spatial_cell->set_max_v_dt(popID,numeric_limits<Real>::max());
 
       return total_transform;
@@ -121,12 +97,10 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       Eigen::Matrix<Real,3,1> rotation_pivot(total_transform*bulk_velocity);
       
       //include lorentzHallTerm (we should include, always)      
-      rotation_pivot[0]-= hallPrefactor*(dBZdy - dBYdz);
-      rotation_pivot[1]-= hallPrefactor*(dBXdz - dBZdx);
-      rotation_pivot[2]-= hallPrefactor*(dBYdx - dBXdy);
+      rotation_pivot[0] -= hallPrefactor*(dBZdy - dBYdz);
+      rotation_pivot[1] -= hallPrefactor*(dBXdz - dBZdx);
+      rotation_pivot[2] -= hallPrefactor*(dBYdx - dBXdy);
 
-#warning Is particle charge sign taken correctly into account here?
-      
       // add to transform matrix the small rotation around  pivot
       // when added like this, and not using *= operator, the transformations
       // are in the correct order
@@ -134,6 +108,5 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       total_transform = AngleAxis<Real>(substeps_radians,unit_B)*total_transform;
       total_transform = Translation<Real,3>(rotation_pivot)*total_transform;
    }
-
    return total_transform;
 }
