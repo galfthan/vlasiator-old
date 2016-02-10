@@ -49,14 +49,15 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       unit_B(0,0) = 0; unit_B(1,0) = 0; unit_B(2,0) = 1;
    }
 
-   const Real gyro_period 
-     = 2 * M_PI * getObjectWrapper().particleSpecies[popID].mass
-     / (getObjectWrapper().particleSpecies[popID].charge * B_mag);
+   const Real q_per_m = getObjectWrapper().particleSpecies[popID].charge 
+      / getObjectWrapper().particleSpecies[popID].mass;
+   
+   const Real gyro_period = 2 * M_PI /( fabs(q_per_m) * B_mag);
 
    // scale rho for hall term, if user requests
    const Real EPSILON = 1e10 * numeric_limits<Real>::min();
    const Real rho = spatial_cell->parameters[CellParams::RHO_V] + EPSILON;
-   #warning Hall term assumes electron charge density is  equal to current ion population charge density. FIX for multiple species!!
+   #warning Hall term & electron pressure term assumes electron charge density is  equal to current ion population charge density. FIX for multiple species!!
    const Real hallRho =  (rho <= Parameters::hallMinimumRho ) ? Parameters::hallMinimumRho : rho ;
    const Real hallPrefactor = std::copysign(1.0, particleSpecies[popID].charge) / (physicalconstants::MU_0 * hallRho * physicalconstants::CHARGE );
 
@@ -70,9 +71,6 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
    if (Parameters::propagatePotential == true) {
       // Electric acceleration works for Poisson only atm
       Real* E = &(spatial_cell->parameters[CellParams::EXVOL]);
-
-      const Real q_per_m = getObjectWrapper().particleSpecies[popID].charge 
-                         / getObjectWrapper().particleSpecies[popID].mass;
       const Real CONST = q_per_m * dt;
       total_transform(0,3) = CONST * E[0];
       total_transform(1,3) = CONST * E[1];
@@ -89,8 +87,9 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
    bulk_velocity_substeps = fabs(dt) / (fabs(gyro_period)*(0.1/360.0)); 
    if (bulk_velocity_substeps < 1) bulk_velocity_substeps=1;
 
-   // note, we assume q is positive (pretty good assumption though)
-   const Real substeps_radians = -(2.0*M_PI*dt/fabs(gyro_period))/bulk_velocity_substeps; // how many radians each substep is.
+   const Real substeps_radians = -std::copysign(1.0, particleSpecies[popID].charge) * (2.0 * M_PI * dt / gyro_period) / bulk_velocity_substeps; /*!< how many radians each substep is.*/
+   const Real substeps_dt=dt / bulk_velocity_substeps; /*!< how many s each substep is*/
+
    for (uint i=0; i<bulk_velocity_substeps; ++i) {
       // rotation origin is the point through which we place our rotation axis (direction of which is unitB).
       // first add bulk velocity (using the total transform computed this far.
@@ -104,9 +103,18 @@ Eigen::Transform<Real,3,Eigen::Affine> compute_acceleration_transformation(
       // add to transform matrix the small rotation around  pivot
       // when added like this, and not using *= operator, the transformations
       // are in the correct order
-      total_transform = Translation<Real,3>(-rotation_pivot)*total_transform;
-      total_transform = AngleAxis<Real>(substeps_radians,unit_B)*total_transform;
-      total_transform = Translation<Real,3>(rotation_pivot)*total_transform;
+      total_transform = Translation<Real,3>(-rotation_pivot) * total_transform;
+      total_transform = AngleAxis<Real>(substeps_radians,unit_B) * total_transform;
+      total_transform = Translation<Real,3>(rotation_pivot) * total_transform;
+      // Electron pressure gradient term
+      if(Parameters::ohmGradPeTerm > 0) {
+         Eigen::Matrix<Real,3,1> EgradPe(
+            spatial_cell->parameters[CellParams::EXGRADPE],
+            spatial_cell->parameters[CellParams::EYGRADPE],
+            spatial_cell->parameters[CellParams::EZGRADPE]);
+         total_transform=Translation<Real,3>( q_per_m * EgradPe * substeps_dt) * total_transform;
+      }
+
    }
    return total_transform;
 }
