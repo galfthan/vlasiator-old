@@ -62,9 +62,82 @@ vmesh::LocalID addVelocityBlock(const vmesh::GlobalID& blockGID,
     return newBlockLID;
 }
 
-void loadColumnBlockData(SpatialCell* spatial_cell,vmesh::GlobalID* blocks,
-                         vmesh::LocalID n_blocks,Vec* __restrict__ values,
-                         const unsigned char * const cellid_transpose);
+
+/*datatypes for block data cache. Cache size of 2 is enough, hardcoded*/
+typedef std::array< std::pair<vmesh::GlobalID, Realf *>, 2> BlockDataCache;
+void initBlockDataCache(BlockDataCache &cache, 
+                        vmesh::VelocityBlockContainer<vmesh::LocalID> &blockContainer) {
+   for(uint i = 0; i < 2; i++){
+      cache[i].first = vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidGlobalID();
+      cache[i].second = blockContainer.getNullData(); 
+   }
+}
+
+/*Get cached value, and update cache if it is not there*/
+
+inline Realf* getCachedBlockData(vmesh::GlobalID globalId, BlockDataCache &cache, 
+                                  vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID> &vmesh, 
+                                  vmesh::VelocityBlockContainer<vmesh::LocalID> &blockContainer) {
+   
+   if(cache[0].first == globalId) {
+      //cache hit, retun value
+      return cache[0].second;
+   }
+   if(cache[1].first == globalId) {
+      //cache hit, retun value
+      return cache[1].second;
+   }
+   //cache miss, add new value in beginning and drop last value 
+   cache[1] = cache[0];
+   cache[0].first = globalId;         
+   
+   vmesh::LocalID localId = vmesh.getLocalID(globalId);
+   //Try to create block if it does not exist
+   if (localId == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
+      localId = addVelocityBlock(globalId, vmesh, blockContainer);
+   }
+   cache[0].second = blockContainer->getData(localId);
+/*
+
+   if (localId == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
+      //failed to create, outside mesh. This should not really happen(!).
+      cache[0].second = blockContainer.getNullData(); 
+   } else {
+
+   }
+*/
+   _mm_prefetch((char *)(cache[0].second), _MM_HINT_T0);
+   _mm_prefetch((char *)(cache[0].second) + 64, _MM_HINT_T0);
+   _mm_prefetch((char *)(cache[0].second) + 128, _MM_HINT_T0);
+   _mm_prefetch((char *)(cache[0].second) + 192, _MM_HINT_T0);
+   return cache[0].second;
+}
+
+
+
+
+
+inline void prefetchColumnBlockData(
+   const vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID> &vmesh,
+   vmesh::VelocityBlockContainer<vmesh::LocalID> &blockContainer,
+   vmesh::GlobalID* blocks,
+   vmesh::LocalID n_blocks) 
+{
+   
+   //prefetch all...
+   for (vmesh::LocalID block_k=0; block_k<n_blocks; ++block_k) {
+      Realf* __restrict__ data = blockContainer.getData(vmesh.getLocalID(blocks[block_k]));      
+#ifdef __INTEL_COMPILER
+      __assume_aligned(data, 64);
+#endif
+      //prefetch 4 cache lines (one block is 64 elements * 4 bytes/element) 
+      _mm_prefetch((char *)data, _MM_HINT_T1);
+      _mm_prefetch((char *)data + 64 , _MM_HINT_T1);
+      _mm_prefetch((char *)data + 128 , _MM_HINT_T1);
+      _mm_prefetch((char *)data + 192 , _MM_HINT_T1);
+   }
+}
+
 
 /*!
   Copies the data of a column into the values array, and zeroes the data.
@@ -90,7 +163,7 @@ inline void loadColumnBlockData(//SpatialCell* spatial_cell,
         Vec* __restrict__ values,
         const unsigned char * const cellid_transpose) {
 
-   Realv blockValues[WID3];   
+   Realv blockValues[WID3] __attribute__((aligned(64)));   
    // first set the 0 values for the two empty blocks 
    // we store above and below the existing blocks
 
@@ -104,11 +177,16 @@ inline void loadColumnBlockData(//SpatialCell* spatial_cell,
    // copy block data for all blocks
    for (vmesh::LocalID block_k=0; block_k<n_blocks; ++block_k) {
       Realf* __restrict__ data = blockContainer.getData(vmesh.getLocalID(blocks[block_k]));
-
+#ifdef __INTEL_COMPILER
+      __assume_aligned(data, 64);
+      __assume_aligned(cellid_transpose, 64);
+#endif
       //  Copy volume averages of this block, taking into account the dimension shifting
+#pragma ivdep
       for (uint i=0; i<WID3; ++i) {
          blockValues[i] = data[cellid_transpose[i]];
       }
+      
       for (uint i=0; i<WID3; ++i) {
          data[i]=0;
       }
@@ -138,7 +216,10 @@ inline void loadColumnBlockData(//SpatialCell* spatial_cell,
 */
 bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
             vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer,
-            Realv intersection, Realv intersection_di, Realv intersection_dj,Realv intersection_dk,
+            Realv intersection,
+            Realv intersection_di,
+            Realv intersection_dj,
+            Realv intersection_dk,
             uint dimension) {
    no_subnormals();
 
@@ -147,7 +228,10 @@ bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
    uint max_v_length;
    uint block_indices_to_id[3]; /*< used when computing id of target block */
    uint cell_indices_to_id[3]; /*< used when computing id of target cell in block*/
-   unsigned char cellid_transpose[WID3]; /*< defines the transpose for the solver internal (transposed) id: i + j*WID + k*WID2 to actual one*/
+   unsigned char cellid_transpose[WID3] __attribute__((aligned(64))); /*< defines the transpose for the solver internal (transposed) id: i + j*WID + k*WID2 to actual one*/
+
+   BlockDataCache cache;
+   initBlockDataCache(cache, blockContainer);
 
    // Velocity grid refinement level, has no effect but is 
    // needed in some vmesh::VelocityMesh function calls.
@@ -238,10 +322,8 @@ bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
         to ( MAX_BLOCKS_PER_DIM / 2 + 1) columns with each needing three
         blocks (two for padding)
    */
-   Vec values[(3 * ( MAX_BLOCKS_PER_DIM / 2 + 1)) * WID3 / VECL];
+   Vec values[(3 * ( MAX_BLOCKS_PER_DIM / 2 + 1)) * WID3 / VECL] __attribute__((aligned(64)));
    // these two temporary variables are used to optimize access to target cells
-   vmesh::LocalID previous_target_block = vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID();
-   Realf *target_block_data = NULL;
 
    // loop over block column sets  (all columns along the dimension with the other dimensions being equal )
    for( uint setIndex=0; setIndex< setColumnOffsets.size(); ++setIndex) {
@@ -254,6 +336,17 @@ bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
          loadColumnBlockData(vmesh, blockContainer, cblocks, n_cblocks, values + valuesColumnOffset, cellid_transpose);
          valuesColumnOffset += (n_cblocks + 2) * (WID3/VECL); // there are WID3/VECL elements of type Vec per block
       }
+
+      //prefetch the next column set
+      if(setIndex + 1 < setColumnOffsets.size()) {
+         for(uint columnIndex = setColumnOffsets[setIndex + 1]; columnIndex < setColumnOffsets[setIndex + 1] + setNumColumns[setIndex + 1] ; columnIndex ++){
+            const vmesh::LocalID n_cblocks = columnNumBlocks[columnIndex];
+            vmesh::GlobalID* cblocks = blocks + columnBlockOffsets[columnIndex]; //column blocks
+            prefetchColumnBlockData(vmesh, blockContainer, cblocks, n_cblocks);
+         }
+      }
+      
+
 
       // loop over columns in set and do the mapping
       valuesColumnOffset = 0; //offset to values array for data in a column in this set
@@ -352,7 +445,9 @@ bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
                compute_ppm_coeff(values + valuesColumnOffset + i_pcolumnv(j, 0, -1, n_cblocks), h4, k + WID, a);
                #endif
                #ifdef ACC_SEMILAG_PQM
-               Vec a[5];
+               Vec a[5] __attribute__((aligned(64)));
+//inlining this changes results a bit
+#pragma forceinline recursive
                compute_pqm_coeff(values + valuesColumnOffset + i_pcolumnv(j, 0, -1, n_cblocks), h8, k + WID, a);
                #endif
                
@@ -414,26 +509,11 @@ bool map_1d(vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh,
                      // are outside of the (possible) target grid.
                      // TODO, count losses if these are not fulfilled.
                      if (gk[target_i] >=0 && gk[target_i] < max_v_length * WID) {
-                        if (previous_target_block != tblock) {
-                           // The code inside this block is slower with the new AMR-related interface
-                           previous_target_block = tblock;
-
-                           // Get target block local ID. Attempt to create target
-                           // block if it does not exist.
-                           vmesh::LocalID tblockLID = vmesh.getLocalID(tblock);
-                           if (tblockLID == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
-                              tblockLID = addVelocityBlock(tblock,vmesh,blockContainer);
-                           }
-
-                           // Get pointer to target block data. If target block does 
-                           // not exist, values are added to null_block_data.
-                           if (tblockLID == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
-                               target_block_data = blockContainer.getNullData();
-                           } else {
-                               target_block_data = blockContainer.getData(tblockLID);
-                           }
-                        }
-
+                        Realf * target_block_data;
+                        //get block data. The block will also be created if it
+                        //does not exist.
+#pragma forceinline
+                        target_block_data = getCachedBlockData(tblock, cache, vmesh, blockContainer);
                         // do the conversion from Realv to Realf here, faster than doing it in accumulation
                         const Realf tval = target_density[target_i];
                         const uint tcell = target_cell[target_i];

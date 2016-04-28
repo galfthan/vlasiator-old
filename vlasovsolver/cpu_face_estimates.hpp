@@ -26,7 +26,7 @@ enum face_estimate_order {h4, h5, h6, h8};
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */ 
-inline void compute_h8_left_face_value(const Vec * const values, uint k, Vec &fv_l){   
+inline void compute_h8_left_face_value(const Vec * __restrict__  const values, uint k, Vec &fv_l){   
    fv_l = 1.0/840.0 * (
       - 3.0 * values[k - 4]  
       + 29.0 * values[k - 3]  
@@ -48,7 +48,7 @@ inline void compute_h8_left_face_value(const Vec * const values, uint k, Vec &fv
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */ 
-inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Vec &fd_l){   
+inline void compute_h7_left_face_derivative(const Vec * __restrict__  const values, uint k, Vec &fd_l){   
     fd_l = 1.0/5040.0 * (
        + 9.0 * values[k - 4]  
        - 119.0 * values[k - 3]  
@@ -69,7 +69,7 @@ inline void compute_h7_left_face_derivative(const Vec * const values, uint k, Ve
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */ 
-inline void compute_h6_left_face_value(const Vec * const values, uint k, Vec &fv_l){   
+inline void compute_h6_left_face_value(const Vec * __restrict__  const values, uint k, Vec &fv_l){   
   /*compute left value*/
    fv_l = 1.0/60.0 * (values[k - 3]  
                       - 8.0 * values[k - 2]  
@@ -88,7 +88,7 @@ inline void compute_h6_left_face_value(const Vec * const values, uint k, Vec &fv
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */ 
-inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Vec &fd_l){   
+inline void compute_h5_left_face_derivative(const Vec * __restrict__  const values, uint k, Vec &fd_l){   
   fd_l = 1.0/180.0 * (245 * (values[k] - values[k - 1])  
                      - 25 * (values[k + 1] - values[k - 2]) 
                      + 2 * (values[k + 2] - values[k - 3]));
@@ -104,7 +104,7 @@ inline void compute_h5_left_face_derivative(const Vec * const values, uint k, Ve
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */ 
-inline void compute_h5_face_values(const Vec * const values, uint k, Vec &fv_l, Vec &fv_r){   
+inline void compute_h5_face_values(const Vec * __restrict__  const values, uint k, Vec &fv_l, Vec &fv_r){   
   /*compute left values*/
   fv_l = 1.0/60.0 * (- 3.0 * values[k - 2]  
                      + 27.0 * values[k - 1] 
@@ -126,7 +126,7 @@ inline void compute_h5_face_values(const Vec * const values, uint k, Vec &fv_l, 
   \param i Index of cell in values for which the left face derivativeis computed
   \param fd_l Face derivative on left face of cell i
 */ 
-inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Vec &fd_l){   
+inline void compute_h4_left_face_derivative(const Vec * __restrict__  const values, uint k, Vec &fd_l){   
   fd_l = 1.0/12.0 * (15.0 * (values[k] - values[k - 1]) - (values[k + 1] - values[k - 2]));
 }
 
@@ -142,7 +142,7 @@ inline void compute_h4_left_face_derivative(const Vec * const values, uint k, Ve
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */ 
-inline void compute_h4_left_face_value(const Vec * const values, uint k, Vec &fv_l){   
+inline void compute_h4_left_face_value(const Vec * __restrict__  const values, uint k, Vec &fv_l){   
   /*compute left value*/
   fv_l = 1.0/12.0 * ( - 1.0 * values[k - 2]  
                       + 7.0 * values[k - 1] 
@@ -160,7 +160,7 @@ inline void compute_h4_left_face_value(const Vec * const values, uint k, Vec &fv
   \param i Index of cell in values for which the left face is computed
   \param fv_l Face value on left face of cell i
 */ 
-inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Vec &fv_l){   
+inline void compute_h3_left_face_derivative(const Vec * __restrict__  const values, uint k, Vec &fv_l){   
   /*compute left value*/
   fv_l = 1.0/12.0 * (15 * (values[k] - values[k - 1]) - (values[k + 1] - values[k - 2]));
 }
@@ -171,7 +171,7 @@ inline void compute_h3_left_face_derivative(const Vec * const values, uint k, Ve
   2) Makes face values bounded
   3) Makes sure face slopes are consistent with PLM slope
 */
-inline void compute_filtered_face_values_derivatives(const Vec * const values,uint k, face_estimate_order order,
+inline void compute_filtered_face_values_derivatives(const Vec * __restrict__  const values,uint k, face_estimate_order order,
                                                         Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r){   
 
    switch(order){
@@ -238,7 +238,7 @@ inline void compute_filtered_face_values_derivatives(const Vec * const values,ui
   2) Makes face values bounded
   3) Makes sure face slopes are consistent with PLM slope
 */
-inline void compute_filtered_face_values(const Vec * const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r){   
+inline void compute_filtered_face_values(const Vec * __restrict__  const values,uint k, face_estimate_order order, Vec &fv_l, Vec &fv_r){   
    switch(order){
        case h4:
           compute_h4_left_face_value(values, k, fv_l);

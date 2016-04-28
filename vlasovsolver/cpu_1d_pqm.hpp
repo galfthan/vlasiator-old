@@ -1,6 +1,6 @@
 /*
 This file is part of Vlasiator.
-Copyright 2013, 2014 Finnish Meteorological Institute
+Copyright 2013, 2014, 2016 Finnish Meteorological Institute
 
 */
 
@@ -19,7 +19,7 @@ using namespace std;
 
 
 /*make sure quartic polynomial is monotonic*/
-inline void filter_pqm_monotonicity(Vec *values, uint k, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r){   
+inline void filter_pqm_monotonicity(Vec * __restrict__ values, uint k, Vec &fv_l, Vec &fv_r, Vec &fd_l, Vec &fd_r){   
    const Vec root_outside = Vec(100.0); //fixed values give to roots clearly outside [0,1], or nonexisting ones*/
    /*second derivative coefficients, eq 23 in white et al.*/
    Vec b0 =   60.0 * values[k] - 24.0 * fv_r - 36.0 * fv_l + 3.0 * (fd_r - 3.0 * fd_l);
@@ -58,12 +58,13 @@ inline void filter_pqm_monotonicity(Vec *values, uint k, Vec &fv_l, Vec &fv_r, V
                             slope_sign);
    Vecb fixInflexion = root1_slope * slope_sign < 0.0 || root2_slope * slope_sign < 0.0;
    if (horizontal_or (fixInflexion) ){ 
-      Realv valuesa[VECL];
-      Realv fva_l[VECL];
-      Realv fva_r[VECL];
-      Realv fda_l[VECL];
-      Realv fda_r[VECL];
-      Realv slope_signa[VECL];
+      Realv valuesa[VECL] __attribute__((aligned(64)));
+      Realv fva_l[VECL]  __attribute__((aligned(64)));
+      Realv fva_r[VECL]  __attribute__((aligned(64)));
+      Realv fda_l[VECL]  __attribute__((aligned(64)));
+      Realv fda_r[VECL]  __attribute__((aligned(64)));
+      Realv slope_signa[VECL]  __attribute__((aligned(64)));
+
       values[k].store(valuesa);
       fv_l.store(fva_l);
       fd_l.store(fda_l);
@@ -126,7 +127,7 @@ inline void filter_pqm_monotonicity(Vec *values, uint k, Vec &fv_l, Vec &fv_r, V
 //   White, Laurent, and Alistair Adcroft. “A High-Order Finite Volume Remapping Scheme for Nonuniform Grids: The Piecewise Quartic Method (PQM).” Journal of Computational Physics 227, no. 15 (July 2008): 7394–7422. doi:10.1016/j.jcp.2008.04.026.
 // */
 
-inline void compute_pqm_coeff(Vec *values, face_estimate_order order, uint k, Vec a[5]){
+inline void compute_pqm_coeff(Vec * __restrict__ values, face_estimate_order order, uint k, Vec a[5]){
    Vec fv_l; /*left face value*/
    Vec fv_r; /*right face value*/
    Vec fd_l; /*left face derivative*/
