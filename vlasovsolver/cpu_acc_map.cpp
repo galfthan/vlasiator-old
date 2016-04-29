@@ -96,7 +96,7 @@ inline Realf* getCachedBlockData(vmesh::GlobalID globalId, BlockDataCache &cache
    if (localId == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
       localId = addVelocityBlock(globalId, vmesh, blockContainer);
    }
-   cache[0].second = blockContainer->getData(localId);
+   cache[0].second = blockContainer.getData(localId);
 /*
 
    if (localId == vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>::invalidLocalID()) {
