@@ -1,8 +1,9 @@
 #Intel compile on sisu, Cray XC40
 #List of required module loads & swaps  
 #module swap PrgEnv-cray PrgEnv-intel
-#module swap intel intel/15.0.2.164
-#module load cray-trilinos
+#module swap intel intel/16.0.2.181  
+#module load cray-trilinos/12.2.1.0 
+#module load cray-tpsl/16.03.1 
 #module load papi
 #module load gcc/4.9.2
 
@@ -28,9 +29,13 @@ FLAGS =
 
 #GNU flags:
 CC_BRAND = intel
-CC_BRAND_VERSION = 14.0.3
+CC_BRAND_VERSION = 15.0.2.164
+
+CXXFLAGS += -O2 -xCORE-AVX2  -opt-report=5  -inline-level=2 -no-inline-min-size -std=c++11 -qopenmp -ansi-alias
+#CXXFLAGS +=  -g  -std=c++11 -qopenmp 
+
 #With intel 15 these options are a few % faster than gnu 4.9
-CXXFLAGS += -Ofast  -inline-level=2 -no-inline-min-size -std=c++11 -openmp -ansi-alias
+#CXXFLAGS += -Ofast  -inline-level=2 -no-inline-min-size -std=c++11 -qopenmp -ansi-alias
 
 #CXXFLAGS += -O2 -std=c++11 -openmp   -ansi-alias
 
@@ -38,27 +43,24 @@ CXXFLAGS += -Ofast  -inline-level=2 -no-inline-min-size -std=c++11 -openmp -ansi
 
 
 MATHFLAGS = 
-LDFLAGS = -openmp 
+LDFLAGS = -qopenmp 
 LIB_MPI = 
 
-BOOST_VERSION = 1.54.0
-MPT_VERSION = 7.0.1
-ZOLTAN_VERSION = 3.8
-SILO_VERSION = 4.9.1
-JEMALLOC_VERSION = 3.6.0
+MPT_VERSION = 7.3.3
+JEMALLOC_VERSION = 4.2.0
 LIBRARY_PREFIX = /homeappl/home/alfthan/libraries
-
+EIGEN_VERSION = 3.2.8
+#ZOLTAN_VERSION = 3.8
 
 #compiled libraries
 INC_BOOST = -I$(CRAY_TRILINOS_PREFIX_DIR)/include/boost
-INC_BOOST = -L$(CRAY_TRILINOS_PREFIX_DIR)/lib -lboost_program_options
+LIB_BOOST = -L$(CRAY_TRILINOS_PREFIX_DIR)/lib -lboost_program_options
 
 INC_ZOLTAN = -I$(CRAY_TRILINOS_PREFIX_DIR)/include
-LIB_ZOLTAN = -I$(CRAY_TRILINOS_PREFIX_DIR)/lib -lzoltan
+LIB_ZOLTAN = -L$(CRAY_TRILINOS_PREFIX_DIR)/lib -lzoltan
 
-
-INC_SILO = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/silo/$(SILO_VERSION)/include
-LIB_SILO = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/silo/$(SILO_VERSION)/lib -lsilo
+#INC_ZOLTAN = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/zoltan/$(ZOLTAN_VERSION)/include
+#LIB_ZOLTAN = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/zoltan/$(ZOLTAN_VERSION)/lib -lzoltan
 
 INC_JEMALLOC = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/jemalloc/$(JEMALLOC_VERSION)/include
 LIB_JEMALLOC = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/jemalloc/$(JEMALLOC_VERSION)/lib -ljemalloc
@@ -66,13 +68,12 @@ LIB_JEMALLOC = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_
 INC_VLSV = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/vlsv
 LIB_VLSV = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/vlsv -lvlsv
 
-
-LIB_PROFILE = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/phiprof/lib -lphiprof
 INC_PROFILE = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/phiprof/include
+LIB_PROFILE = -L$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/phiprof/lib -lphiprof
+
 
 #header libraries
-
-INC_EIGEN = -I$(LIBRARY_PREFIX)/eigen/
+INC_EIGEN = -I$(LIBRARY_PREFIX)/mpich2/$(MPT_VERSION)/$(CC_BRAND)/$(CC_BRAND_VERSION)/eigen/$(EIGEN_VERSION)/
 INC_DCCRG = -I$(LIBRARY_PREFIX)/dccrg/
 INC_VECTORCLASS = -I$(LIBRARY_PREFIX)/vectorclass
 
