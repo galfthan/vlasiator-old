@@ -87,15 +87,18 @@ bool computeNewTimeStep(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
       1st position stores velocity space propagation dt
       2nd position stores field propagation dt
    */
+   Real dtMaxLocalV,  dtMaxLocalR, dtMaxLocalF;
    Real dtMaxLocal[3];
    Real dtMaxGlobal[3];
-   
-   dtMaxLocal[0]=numeric_limits<Real>::max();
-   dtMaxLocal[1]=numeric_limits<Real>::max();
-   dtMaxLocal[2]=numeric_limits<Real>::max();
 
-   for (vector<CellID>::const_iterator cell_id=cells.begin(); cell_id!=cells.end(); ++cell_id) {
-      SpatialCell* cell = mpiGrid[*cell_id];
+   
+   dtMaxLocalV = numeric_limits<Real>::max();
+   dtMaxLocalR = numeric_limits<Real>::max();
+   dtMaxLocalF = numeric_limits<Real>::max();
+   
+#pragma omp parallel for reduction(min : dtMaxLocalV, dtMaxLocalR, dtMaxLocalF)
+   for (int i = 0; i < cells.size(); i++){
+      SpatialCell* cell = mpiGrid[cells[i]];
       const Real dx = cell->parameters[CellParams::DX];
       const Real dy = cell->parameters[CellParams::DY];
       const Real dz = cell->parameters[CellParams::DZ];
@@ -107,20 +110,20 @@ bool computeNewTimeStep(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
          for (vmesh::LocalID blockLID=0; blockLID<blockContainer.size(); ++blockLID) {
             for (unsigned int i=0; i<WID;i+=WID-1) {
                 const Real Vx 
-                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::VXCRD] 
+                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VXCRD] 
                   + (i+HALF)*blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::DVX]
                   + EPS;
                 const Real Vy 
-                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::VYCRD] 
+                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VYCRD] 
                   + (i+HALF)*blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::DVY]
                   + EPS;
                     const Real Vz 
-                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::VZCRD]
+                  = blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS + BlockParams::VZCRD]
                   + (i+HALF)*blockParams[blockLID*BlockParams::N_VELOCITY_BLOCK_PARAMS+BlockParams::DVZ]
                   + EPS;
 
-                const Real dt_max_cell = min(dx/fabs(Vx),min(dy/fabs(Vy),dz/fabs(Vz)));
-                cell->parameters[CellParams::MAXRDT] = min(dt_max_cell,cell->parameters[CellParams::MAXRDT]);
+                const Real dt_max_cell = min(dx/fabs(Vx), min(dy/fabs(Vy), dz/fabs(Vz)));
+                cell->parameters[CellParams::MAXRDT] = min(dt_max_cell, cell->parameters[CellParams::MAXRDT]);
                 cell->set_max_r_dt(popID,min(dt_max_cell,cell->get_max_r_dt(popID)));
              }
          }
@@ -129,16 +132,19 @@ bool computeNewTimeStep(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
       
       if ( cell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY ||
            (cell->sysBoundaryLayer == 1 && cell->sysBoundaryFlag != sysboundarytype::NOT_SYSBOUNDARY )) {
-         //spatial fluxes computed also for boundary cells
-         dtMaxLocal[0]=min(dtMaxLocal[0], cell->parameters[CellParams::MAXRDT]);
-         dtMaxLocal[2]=min(dtMaxLocal[2], cell->parameters[CellParams::MAXFDT]);
+	//spatial fluxes computed also for boundary cells
+	dtMaxLocalR = min(dtMaxLocalR, cell->parameters[CellParams::MAXRDT]);
+	dtMaxLocalF = min(dtMaxLocalF, cell->parameters[CellParams::MAXFDT]);
       }
 
       if (cell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY && cell->parameters[CellParams::MAXVDT] != 0) {
          //Acceleration only done on non sysboundary cells
-         dtMaxLocal[1]=min(dtMaxLocal[1], cell->parameters[CellParams::MAXVDT]);
+	dtMaxLocalV = min(dtMaxLocal[1], cell->parameters[CellParams::MAXVDT]);
       }
    }
+   dtMaxLocal[0] = dtMaxLocalR;
+   dtMaxLocal[1] = dtMaxLocalV;
+   dtMaxLocal[2] = dtMaxLocalF;
    MPI_Allreduce(&(dtMaxLocal[0]), &(dtMaxGlobal[0]), 3, MPI_Type<Real>(), MPI_MIN, MPI_COMM_WORLD);
    
    //If any of the solvers are disabled there should be no limits in timespace from it
