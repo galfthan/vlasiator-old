@@ -139,7 +139,7 @@ bool computeNewTimeStep(dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpi
 
       if (cell->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY && cell->parameters[CellParams::MAXVDT] != 0) {
          //Acceleration only done on non sysboundary cells
-	dtMaxLocalV = min(dtMaxLocal[1], cell->parameters[CellParams::MAXVDT]);
+	dtMaxLocalV = min(dtMaxLocalV, cell->parameters[CellParams::MAXVDT]);
       }
    }
    dtMaxLocal[0] = dtMaxLocalR;
