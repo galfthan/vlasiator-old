@@ -73,7 +73,7 @@ void createTargetGrid(
         const int& popID) {
 
    phiprof::start("create-target-grid");
-    #pragma omp parallel for
+#pragma omp parallel for
     for (size_t c=0; c<cells.size(); ++c) {
       Real t_start = 0.0;
       if (Parameters::prepareForRebalance == true) t_start = MPI_Wtime();
@@ -271,7 +271,9 @@ void compute_spatial_source_neighbors(const dccrg::Dccrg<SpatialCell,dccrg::Cart
                                       const CellID& cellID,
                                       const uint dimension,
                                       SpatialCell **neighbors){
-   for(int i = -VLASOV_STENCIL_WIDTH; i <= VLASOV_STENCIL_WIDTH; i++){
+
+
+  for(int i = -VLASOV_STENCIL_WIDTH; i <= VLASOV_STENCIL_WIDTH; i++){
       switch (dimension){
           case 0:
              neighbors[i + VLASOV_STENCIL_WIDTH] = get_spatial_neighbor_pointer(mpiGrid, cellID, true, i, 0, 0);
@@ -287,6 +289,7 @@ void compute_spatial_source_neighbors(const dccrg::Dccrg<SpatialCell,dccrg::Cart
 
    SpatialCell* last_good_cell = mpiGrid[cellID];
    /*loop to neative side and replace all invalid cells with the closest good cell*/
+
    for(int i = -1;i>=-VLASOV_STENCIL_WIDTH;i--){
       if(neighbors[i + VLASOV_STENCIL_WIDTH] == NULL) 
          neighbors[i + VLASOV_STENCIL_WIDTH] = last_good_cell;
@@ -561,7 +564,8 @@ bool trans_map_1d(
 
     // Loop over blocks in spatial cell. In ordinary space the number of
     // blocks in this spatial cell does not change.
-    #pragma omp for
+    //    phiprof::start("Threaded-mapping-loop");
+    #pragma omp for nowait
     for (vmesh::LocalID block_i=0; block_i<vmesh.size(); ++block_i) {
         const vmesh::GlobalID blockGID = vmesh.getGlobalID(block_i);
 
@@ -644,7 +648,7 @@ bool trans_map_1d(
         //store values from target_values array to the actual blocks
         store_trans_block_data(target_neighbors,blockGID,target_values,cellid_transpose,popID);
     }
-
+    //    phiprof::stop("Threaded-mapping-loop");
     return true;
 }
 
