@@ -313,7 +313,7 @@ void calculateAcceleration(const int& popID,const int& globalMaxSubcycles,const 
                            const Real& dt) {
    // Set active population
    SpatialCell::setCommunicatedSpecies(popID);
-
+   int accTimer = phiprof::initializeTimer("cell-semilag-acc");
    // Semi-Lagrangian acceleration for those cells which are subcycled
    #pragma omp parallel for schedule(dynamic,1)
    for (size_t c=0; c<propagatedCells.size(); ++c) {
@@ -352,9 +352,9 @@ void calculateAcceleration(const int& popID,const int& globalMaxSubcycles,const 
       #endif
          
       uint map_order=rndInt%3;
-      phiprof::start("cell-semilag-acc");
+      phiprof::start(accTimer);
       cpu_accelerate_cell(mpiGrid[cellID],popID,map_order,subcycleDt);
-      phiprof::stop("cell-semilag-acc");
+      phiprof::stop(accTimer);
    }
 
    //global adjust after each subcycle to keep number of blocks managable. Even the ones not
