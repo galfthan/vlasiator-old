@@ -62,7 +62,7 @@ void calculateSpatialTranslation(
 
     // ------------- SLICE - map dist function in Z --------------- //
    if(P::zcells_ini > 1 ){
-     int timerCreate = phiprof::stop("create-target-grid-z");
+     int timerCreate = phiprof::initializeTimer("create-target-grid-z");
      int timerTrans=phiprof::initializeTimer("transfer-stencil-data-z","MPI");
      int timerMap = phiprof::initializeTimer("compute-mapping-z");
      int timerUpdateRemote=phiprof::initializeTimer("update-remote-z","MPI");
@@ -124,7 +124,7 @@ void calculateSpatialTranslation(
 
     // ------------- SLICE - map dist function in X --------------- //
    if(P::xcells_ini > 1 ){
-     int timerCreate = phiprof::stop("create-target-grid-x");
+     int timerCreate = phiprof::initializeTimer("create-target-grid-x");
      int timerTrans=phiprof::initializeTimer("transfer-stencil-data-x","MPI");
      int timerMap = phiprof::initializeTimer("compute-mapping-x");
      int timerUpdateRemote=phiprof::initializeTimer("update-remote-x","MPI");
@@ -186,7 +186,7 @@ void calculateSpatialTranslation(
 
     // ------------- SLICE - map dist function in Y --------------- //
    if(P::ycells_ini > 1 ){
-     int timerCreate = phiprof::stop("create-target-grid-y");
+     int timerCreate = phiprof::initializeTimer("create-target-grid-y");
      int timerTrans=phiprof::initializeTimer("transfer-stencil-data-y","MPI");
      int timerMap = phiprof::initializeTimer("compute-mapping-y");
      int timerUpdateRemote=phiprof::initializeTimer("update-remote-y","MPI");
@@ -286,9 +286,9 @@ void calculateSpatialTranslation(
           local_propagated_cells.push_back(localCells[c]);
        }
     }
-
-   // Figure out target spatial cells, result
-   // independent of particle species.
+    
+    // Figure out target spatial cells, result
+    // independent of particle species.
    for (size_t c=0; c<localCells.size(); ++c) {
       if (mpiGrid[localCells[c]]->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
          local_target_cells.push_back(localCells[c]);
@@ -301,9 +301,13 @@ void calculateSpatialTranslation(
       string profName = "translate "+getObjectWrapper().particleSpecies[popID].name;
       phiprof::start(profName);
       SpatialCell::setCommunicatedSpecies(popID);
-      calculateSpatialTranslation(mpiGrid,localCells,local_propagated_cells,
-                                  local_target_cells,remoteTargetCellsx,remoteTargetCellsy,
-                                  remoteTargetCellsz,dt,popID);
+      calculateSpatialTranslation(mpiGrid,localCells,
+				  local_propagated_cells,
+                                  local_target_cells,
+				  remoteTargetCellsx,
+				  remoteTargetCellsy,
+                                  remoteTargetCellsz,
+				  dt,popID);
       phiprof::stop(profName);
    }
 
