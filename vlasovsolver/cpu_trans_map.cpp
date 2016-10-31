@@ -99,9 +99,6 @@ void createTargetGrid(
          blockParams[BlockParams::VZCRD] = spatial_cell->get_velocity_block_vz_min(popID,blockGID);
          vmesh.getCellSize(blockGID,&(blockParams[BlockParams::DVX]));
       }
-      
-      if (Parameters::prepareForRebalance == true) 
-	spatial_cell->get_cell_parameters()[CellParams::LBWEIGHTCOUNTER] += (MPI_Wtime()-t_start);
     }
 }
 
@@ -667,7 +664,7 @@ void update_remote_mapping_contribution(
     if(direction > 0) direction = 1;
     if(direction < 0) direction = -1;
     
-#pragma omp for nowait 
+#pragma omp for 
     for (size_t c=0; c<remote_cells.size(); ++c) {
       SpatialCell *ccell = mpiGrid[remote_cells[c]];
       //default values, to avoid any extra sends and receives
@@ -730,11 +727,8 @@ void update_remote_mapping_contribution(
 	mcell->neighbor_number_of_blocks = ccell->get_number_of_velocity_blocks(popID);
 	receive_cells.push_back(local_cells[c]);
       }
-    }
+    } //implicit barrier
     
-    
-
-    // Do communication
 #pragma omp master
     {
       SpatialCell::setCommunicatedSpecies(popID);
@@ -754,32 +748,33 @@ void update_remote_mapping_contribution(
 	break;
       }
     }
-
     //wait for communication to finish
 #pragma omp barrier
 
     //reduce data: sum received data in the data array to 
     // the target grid in the temporary block container
+    // note receive_cells is private and all threads have their own cells, => threadparallel
     for (size_t c=0; c < receive_cells.size(); ++c) {
       SpatialCell* spatial_cell = mpiGrid[receive_cells[c]];
-      vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = spatial_cell->get_velocity_blocks_temporary();
-      
-#pragma omp for nowait
+      vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = spatial_cell->get_velocity_blocks_temporary();      
       for(unsigned int cell=0; cell < VELOCITY_BLOCK_LENGTH * spatial_cell->get_number_of_velocity_blocks(popID); ++cell) {
 	// copy received target data to temporary array where target data is stored.
 	blockContainer.getData()[cell] += spatial_cell->get_data(popID)[cell];
       }
     }
+
+
     // send cell data is set to zero. This is to avoid double copy if
     // one cell is the neighbor on bot + and - side to the same
     // process
+    // note send_cells is private and all threads have their own cells, => threadparallel
     for (size_t c=0; c<send_cells.size(); ++c) {
       SpatialCell* spatial_cell = mpiGrid[send_cells[c]];
       vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = spatial_cell->get_velocity_blocks_temporary();
-#pragma omp for nowait
       for(unsigned int cell=0; cell<VELOCITY_BLOCK_LENGTH*blockContainer.size(); ++cell) {
 	blockContainer.getData()[cell] = 0.0;
       }
     }
-
+    
+    #pragma omp barrier
 }
