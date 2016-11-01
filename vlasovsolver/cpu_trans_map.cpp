@@ -68,8 +68,7 @@ bool do_translate_cell(SpatialCell* SC){
  * @param mpiGrid
  * @param cells .*/
 void createTargetGrid(
-        dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& cells,
+        const vector<SpatialCell*>& cells,
         const int& popID) {
 
 #pragma omp  for
@@ -77,7 +76,7 @@ void createTargetGrid(
       Real t_start = 0.0;
       if (Parameters::prepareForRebalance == true) t_start = MPI_Wtime();
       
-      SpatialCell* spatial_cell = mpiGrid[cells[c]];
+      SpatialCell* spatial_cell = cells[c];
       
       // get target mesh & blocks (in temporary arrays)
       vmesh::VelocityMesh<vmesh::GlobalID,vmesh::LocalID>& vmesh    = spatial_cell->get_velocity_mesh_temporary();
@@ -105,12 +104,10 @@ void createTargetGrid(
 /** Clear temporary target grid for all given cells.
  * @param mpiGrid Parallel grid.
  * @param cells Spatial cells in which mesh is cleared.*/
-void clearTargetGrid(
-        dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& cells) {
+void clearTargetGrid(const vector<SpatialCell*>& cells) {
 #pragma omp  for
   for (size_t c=0; c<cells.size(); ++c) {
-    SpatialCell *spatial_cell = mpiGrid[cells[c]];
+    SpatialCell *spatial_cell = cells[c];
     spatial_cell->get_velocity_mesh_temporary().clear();
     spatial_cell->get_velocity_blocks_temporary().clear();
   }
@@ -119,15 +116,13 @@ void clearTargetGrid(
 /** Set all values in the temporary target grid to zero (0.0) for all given spatial cells.
  * @param mpiGrid Parallel grid.
  * @param cells List of spatial cells.*/
-void zeroTargetGrid(
-        dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& cells) {
+void zeroTargetGrid(const vector<SpatialCell*>& cells) {
     
 #pragma omp  for
   for (size_t c=0; c<cells.size(); ++c) {
-    SpatialCell *spatial_cell = mpiGrid[cells[c]];
+    SpatialCell *spatial_cell = cells[c];
     vmesh::VelocityBlockContainer<vmesh::LocalID>& blockContainer = spatial_cell->get_velocity_blocks_temporary();
-    for (unsigned int cell=0; cell<VELOCITY_BLOCK_LENGTH*blockContainer.size(); ++cell) {
+    for (unsigned int cell=0; cell < VELOCITY_BLOCK_LENGTH * blockContainer.size(); ++cell) {
       blockContainer.getData()[cell] = 0;
     }
   }
@@ -138,14 +133,12 @@ void zeroTargetGrid(
  * @param mpiGrid Parallel grid.
  * @param cells List of spatial cells in which the meshes are swapped.
  * @param popID ID of the particle species whose mesh is swapped.*/
-void swapTargetSourceGrid(
-        dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& cells,
-        const int& popID) {
+void swapTargetSourceGrid(const vector<SpatialCell*>& cells,
+			  const int& popID) {
    
 #pragma omp for
   for (size_t c=0; c<cells.size(); ++c) {
-    SpatialCell* spatial_cell = mpiGrid[cells[c]];
+    SpatialCell* spatial_cell = cells[c];
     spatial_cell->swap(spatial_cell->get_velocity_mesh_temporary(),
 		       spatial_cell->get_velocity_blocks_temporary(),
 		       popID);

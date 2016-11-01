@@ -49,12 +49,12 @@ creal EPSILON = 1.0e-25;
  */
 void calculateSpatialTranslation(
         dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
-        const vector<CellID>& localCells,
-        const vector<CellID>& local_propagated_cells,
-        const vector<CellID>& local_target_cells,
-        const vector<CellID>& remoteTargetCellsx,
-        const vector<CellID>& remoteTargetCellsy,
-        const vector<CellID>& remoteTargetCellsz,
+        const vector<SpatialCell*>& localCells,
+        const vector<CellID>& localPropagatedCellsId,
+        const vector<SpatialCell*>& localTargetCells,
+        const vector<SpatialCell*>& remoteTargetCellsx,
+        const vector<SpatialCell*>& remoteTargetCellsy,
+        const vector<SpatialCell*>& remoteTargetCellsz,
         creal dt,
         const int& popID) {
 
@@ -85,9 +85,9 @@ void calculateSpatialTranslation(
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
       phiprof::start(timerCreate);
-      createTargetGrid(mpiGrid,remoteTargetCellsz,popID);
+      createTargetGrid(remoteTargetCellsz,popID);
       if(!localTargetGridGenerated){ 
-	createTargetGrid(mpiGrid,local_target_cells,popID);
+	createTargetGrid(localTargetCells,popID);
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
@@ -102,8 +102,8 @@ void calculateSpatialTranslation(
       phiprof::stop(timerBarrier);
 
       phiprof::start(timerMap);
-      for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-	trans_map_1d(mpiGrid,local_propagated_cells[c], 2, dt,popID); // map along z//
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	trans_map_1d(mpiGrid, localPropagatedCellsId[c], 2, dt,popID); // map along z//
       }
       phiprof::stop(timerMap);
 #pragma omp master
@@ -121,12 +121,12 @@ void calculateSpatialTranslation(
       update_remote_mapping_contribution(mpiGrid, 2, -1,popID);
       phiprof::stop(timerUpdateRemote);
       phiprof::start(timerClear);
-      clearTargetGrid(mpiGrid,remoteTargetCellsz);
+      clearTargetGrid(remoteTargetCellsz);
       phiprof::stop(timerClear);
-      swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
+      swapTargetSourceGrid( localTargetCells,popID);
       if(P::xcells_ini > 1 || P::ycells_ini > 1 ){
 	phiprof::start(timerZero);
-	zeroTargetGrid(mpiGrid, local_target_cells);
+	zeroTargetGrid( localTargetCells);
 	phiprof::stop(timerZero);
       }
     }
@@ -144,9 +144,9 @@ void calculateSpatialTranslation(
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
       phiprof::start(timerCreate);
-      createTargetGrid(mpiGrid,remoteTargetCellsx,popID);
+      createTargetGrid(remoteTargetCellsx,popID);
       if(!localTargetGridGenerated){ 
-	createTargetGrid(mpiGrid,local_target_cells,popID);
+	createTargetGrid(localTargetCells,popID);
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
@@ -162,8 +162,8 @@ void calculateSpatialTranslation(
 
 
       phiprof::start(timerMap);
-      for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-	trans_map_1d(mpiGrid,local_propagated_cells[c], 0, dt,popID); // map along x//
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	trans_map_1d(mpiGrid,localPropagatedCellsId[c], 0, dt,popID); // map along x//
       }
       phiprof::stop(timerMap);
 #pragma omp master
@@ -181,12 +181,12 @@ void calculateSpatialTranslation(
       update_remote_mapping_contribution(mpiGrid, 0, -1,popID);
       phiprof::stop(timerUpdateRemote);
       phiprof::start(timerClear);
-      clearTargetGrid(mpiGrid,remoteTargetCellsx);
+      clearTargetGrid(remoteTargetCellsx);
       phiprof::stop(timerClear);
-      swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
+      swapTargetSourceGrid( localTargetCells,popID);
       if(P::ycells_ini > 1 ){
 	phiprof::start(timerZero);
-	zeroTargetGrid(mpiGrid, local_target_cells);
+	zeroTargetGrid( localTargetCells);
 	phiprof::stop(timerZero);
       }
     }
@@ -207,9 +207,9 @@ void calculateSpatialTranslation(
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
       phiprof::start(timerCreate);
-      createTargetGrid(mpiGrid,remoteTargetCellsy,popID);
+      createTargetGrid(remoteTargetCellsy,popID);
       if(!localTargetGridGenerated){ 
-	createTargetGrid(mpiGrid,local_target_cells,popID);
+	createTargetGrid(localTargetCells,popID);
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
@@ -225,8 +225,8 @@ void calculateSpatialTranslation(
 
 
       phiprof::start(timerMap);
-      for (size_t c=0; c<local_propagated_cells.size(); ++c) {
-	trans_map_1d(mpiGrid,local_propagated_cells[c], 1, dt,popID); // map along y//
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	trans_map_1d(mpiGrid,localPropagatedCellsId[c], 1, dt,popID); // map along y//
       }
       phiprof::stop(timerMap);
 #pragma omp master
@@ -244,13 +244,13 @@ void calculateSpatialTranslation(
       update_remote_mapping_contribution(mpiGrid, 1,-1,popID);
       phiprof::stop(timerUpdateRemote);
       phiprof::start(timerClear);
-      clearTargetGrid(mpiGrid,remoteTargetCellsy);
+      clearTargetGrid(remoteTargetCellsy);
       phiprof::stop(timerClear);
-      swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
+      swapTargetSourceGrid( localTargetCells,popID);
     }
    
 
-    clearTargetGrid(mpiGrid,local_target_cells);
+    clearTargetGrid(localTargetCells);
 
   } //end omp parallel
 }
@@ -271,64 +271,79 @@ void calculateSpatialTranslation(
    typedef Parameters P;
    
    phiprof::start("semilag-trans");
-
-   const vector<CellID>& localCells = getLocalCells();
-   vector<CellID> remoteTargetCellsx;
-   vector<CellID> remoteTargetCellsy;
-   vector<CellID> remoteTargetCellsz;
-   vector<CellID> local_propagated_cells;
-   vector<CellID> local_target_cells;
    
-   // If dt=0 we are either initializing or distribution functions are not translated. 
-   // In both cases go to the end of this function and calculate the moments.
-   if (dt == 0.0) goto momentCalculation;
-   
-    phiprof::start("compute_cell_lists");
-    remoteTargetCellsx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
-    remoteTargetCellsy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
-    remoteTargetCellsz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
 
-    // Figure out which spatial cells are translated, 
-    // result independent of particle species.
-    for (size_t c=0; c<localCells.size(); ++c) {
-       if (do_translate_cell(mpiGrid[localCells[c]])) {
-          local_propagated_cells.push_back(localCells[c]);
-       }
-    }
-    
-    // Figure out target spatial cells, result
-    // independent of particle species.
-   for (size_t c=0; c<localCells.size(); ++c) {
-      if (mpiGrid[localCells[c]]->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
-         local_target_cells.push_back(localCells[c]);
-      }
+   phiprof::start("compute_cell_lists");
+   const vector<CellID>& localCellsId = getLocalCells();
+   vector<CellID> remoteTargetCellsIdx = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_X_NEIGHBORHOOD_ID);
+   vector<CellID> remoteTargetCellsIdy = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Y_NEIGHBORHOOD_ID);
+   vector<CellID> remoteTargetCellsIdz = mpiGrid.get_remote_cells_on_process_boundary(VLASOV_SOLVER_TARGET_Z_NEIGHBORHOOD_ID);
+   vector<SpatialCell*> localCells(localCellsId.size());
+   vector<SpatialCell*> remoteTargetCellsx(remoteTargetCellsIdx.size());
+   vector<SpatialCell*> remoteTargetCellsy(remoteTargetCellsIdy.size());
+   vector<SpatialCell*> remoteTargetCellsz(remoteTargetCellsIdz.size());
+
+#pragma omp parallel
+   {
+#pragma omp for nowait
+     for (size_t c = 0; c < localCellsId.size(); ++c) {
+       localCells[c]= mpiGrid[localCellsId[c]];
+     }
+#pragma omp for nowait
+     for (size_t c = 0; c < remoteTargetCellsIdx.size(); ++c) {
+       remoteTargetCellsx[c] = mpiGrid[remoteTargetCellsIdx[c]];
+     }
+
+#pragma omp for nowait
+     for (size_t c = 0; c < remoteTargetCellsIdy.size(); ++c) {
+       remoteTargetCellsy[c] = mpiGrid[remoteTargetCellsIdy[c]];
+     }
+
+#pragma omp for nowait
+     for (size_t c = 0; c < remoteTargetCellsIdz.size(); ++c) {
+       remoteTargetCellsz[c] = mpiGrid[remoteTargetCellsIdz[c]];
+     }
+   }
+   vector<CellID> localPropagatedCellsId;
+   vector<SpatialCell*> localTargetCells;
+   /*not threaded, needs serial execution*/
+   for (size_t c = 0; c < localCells.size(); ++c) {
+     SpatialCell *sc = localCells[c];
+     if (do_translate_cell(sc)) {
+       localPropagatedCellsId.push_back(localCellsId[c]);
+     }
+     // Figure out target spatial cells, result
+     // independent of particle species.
+     if (sc->sysBoundaryFlag == sysboundarytype::NOT_SYSBOUNDARY) {
+       localTargetCells.push_back(sc);
+     }
    }
    phiprof::stop("compute_cell_lists");
 
-   // Translate all particle species
-   for (int popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
-      string profName = "translate "+getObjectWrapper().particleSpecies[popID].name;
-      phiprof::start(profName);
-      SpatialCell::setCommunicatedSpecies(popID);
-      calculateSpatialTranslation(mpiGrid,localCells,
-				  local_propagated_cells,
-                                  local_target_cells,
-				  remoteTargetCellsx,
-				  remoteTargetCellsy,
-                                  remoteTargetCellsz,
-				  dt,popID);
-      phiprof::stop(profName);
+   // If dt=0 we are either initializing or distribution functions are not translated. 
+   // In both cases do not propagate, but do compute moments 
+   if (dt > 0.0 ) {
+     // Translate all particle species
+     for (int popID=0; popID<getObjectWrapper().particleSpecies.size(); ++popID) {
+       string profName = "translate "+getObjectWrapper().particleSpecies[popID].name;
+       phiprof::start(profName);
+       SpatialCell::setCommunicatedSpecies(popID);
+       calculateSpatialTranslation(mpiGrid,
+				   localCells,
+				   localPropagatedCellsId,
+				   localTargetCells,
+				   remoteTargetCellsx,
+				   remoteTargetCellsy,
+				   remoteTargetCellsz,
+				   dt,
+				   popID);
+       phiprof::stop(profName);
+     }
    }
+   // Mapping complete, update moments and maximum dt limits (TODO, switch to spatialcell pointers vector ) //
 
-   // Mapping complete, update moments and maximum dt limits //
-momentCalculation:
-   calculateMoments_R_maxdt(mpiGrid,localCells,true);
+   calculateMoments_R_maxdt(mpiGrid,localCellsId,true);
 
-   Real minDT = 1e300;
-   for (size_t c=0; c<localCells.size(); ++c) {
-      if (mpiGrid[localCells[c]]->parameters[CellParams::MAXRDT] < minDT) 
-         minDT = mpiGrid[localCells[c]]->parameters[CellParams::MAXRDT];
-   }
    phiprof::stop("semilag-trans");
 }
 
