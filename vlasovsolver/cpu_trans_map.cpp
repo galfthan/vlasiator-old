@@ -145,6 +145,39 @@ void swapTargetSourceGrid(const vector<SpatialCell*>& cells,
   }
 }
 
+
+/*
+ *
+ *
+ *
+ */
+
+
+bool isValidTranslateCell(SpatialCell *sc, bool include_first_boundary_layer){
+   // not existing cell or do not compute
+   if( sc->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE)
+     return false;
+
+   //cell on boundary, but not first layer and we want to include
+   //first layer (e.g. when we compute source cells)
+   if( include_first_boundary_layer &&
+       sc->sysBoundaryFlag != sysboundarytype::NOT_SYSBOUNDARY &&
+       sc->sysBoundaryLayer != 1 ) {
+     return false;
+   }
+
+   //cell on boundary, and we want none of the layers,
+   //invalid.(e.g. when we compute targets)
+   if( !include_first_boundary_layer &&
+       sc->sysBoundaryFlag != sysboundarytype::NOT_SYSBOUNDARY){
+     return false;
+
+   }
+   return true;
+}
+
+
+
 /*
  * return INVALID_CELLID if the spatial neighbor does not exist, or if
  * it is a cell that is not computed. If the
@@ -197,25 +230,9 @@ CellID get_spatial_neighbor(const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geom
       abort();
    }
    
-   // not existing cell or do not compute
-   if( mpiGrid[nbrID]->sysBoundaryFlag == sysboundarytype::DO_NOT_COMPUTE)
+   if(! isValidTranslateCell( mpiGrid[nbrID], include_first_boundary_layer)) 
       return INVALID_CELLID;
-
-   //cell on boundary, but not first layer and we want to include
-   //first layer (e.g. when we compute source cells)
-   if( include_first_boundary_layer &&
-       mpiGrid[nbrID]->sysBoundaryFlag != sysboundarytype::NOT_SYSBOUNDARY &&
-       mpiGrid[nbrID]->sysBoundaryLayer != 1 ) {
-      return INVALID_CELLID;
-   }
-
-   //cell on boundary, and we want none of the layers,
-   //invalid.(e.g. when we compute targets)
-   if( !include_first_boundary_layer &&
-       mpiGrid[nbrID]->sysBoundaryFlag != sysboundarytype::NOT_SYSBOUNDARY){
-      return INVALID_CELLID;
-   }
-
+      
    return nbrID; //no AMR
 }
                                       
@@ -427,6 +444,9 @@ inline void store_trans_block_data(
     }
 }
 
+
+
+
 /* 
    Here we map from the current time step grid, to a target grid which
    is the lagrangian departure grid (so th grid at timestep +dt,
@@ -439,9 +459,12 @@ refion). It is safe as each thread only computes certain blocks (blockID%tnum_th
 bool trans_map_1d(
         const dccrg::Dccrg<SpatialCell,dccrg::Cartesian_Geometry>& mpiGrid,
         const CellID cellID,
+	SpatialCell** source_neighbors,
+	SpatialCell** target_neighbors,
         const uint dimension,
         const Realv dt,
-        const int& popID) {
+        const int& popID
+  ) {
     
     // values used with an stencil in 1 dimension, initialized to 0. 
     // Contains a block, and its spatial neighbours in one dimension.
@@ -450,25 +473,11 @@ bool trans_map_1d(
     uint block_indices_to_id[3]; /*< used when computing id of target block */
     uint cell_indices_to_id[3]; /*< used when computing id of target cell in block*/
     unsigned char  cellid_transpose[WID3]; /*< defines the transpose for the solver internal (transposed) id: i + j*WID + k*WID2 to actual one*/
-    uint thread_id = 0;  //thread id. Default value for serial case
-    uint num_threads = 1; //Number of threads. Default value for serial case
-    #ifdef _OPENMP
-        //get actual values if OpenMP is enabled
-        thread_id = omp_get_thread_num();
-        num_threads = omp_get_num_threads(); 
-    #endif
+
     //do nothing if it is not a normal cell, or a cell that is in the first boundary layer
-    if (get_spatial_neighbor(mpiGrid, cellID, true, 0, 0, 0) == INVALID_CELLID) return true; 
+    if (! isValidTranslateCell(mpiGrid[cellID], true))
+      return true;
    
-    // compute spatial neighbors, separately for targets and source. In
-    // source cells we have a wider stencil and take into account
-    // boundaries. For targets we only have actual cells as we do not
-    // want to propagate boundary cells (array may contain
-    // INVALID_CELLIDs at boundaries).
-    SpatialCell* source_neighbors[1 + 2 * VLASOV_STENCIL_WIDTH];
-    SpatialCell* target_neighbors[3];
-    compute_spatial_source_neighbors(mpiGrid,cellID,dimension,source_neighbors);
-    compute_spatial_target_neighbors(mpiGrid,cellID,dimension,target_neighbors);
     
     // Velocity mesh refinement level, has no effect here but it 
     // is needed in some vmesh::VelocityMesh function calls.
@@ -551,10 +560,6 @@ bool trans_map_1d(
     #pragma omp for nowait
     for (vmesh::LocalID block_i=0; block_i<vmesh.size(); ++block_i) {
         const vmesh::GlobalID blockGID = vmesh.getGlobalID(block_i);
-
-        // Each thread only computes a certain non-overlapping subset of blocks
-        //if (blockGID % num_threads != thread_id) continue;
-
         // buffer where we write data, initialized to 0*/
         Vec target_values[3 * WID3 / VECL];
 

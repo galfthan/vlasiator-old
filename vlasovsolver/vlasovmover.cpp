@@ -60,6 +60,7 @@ void calculateSpatialTranslation(
 
   bool localTargetGridGenerated = false;
   int timerCreate = phiprof::initializeTimer("create-target-grid");
+  int timerNeighbors = phiprof::initializeTimer("get-neighbors");
   int timerTrans=phiprof::initializeTimer("transfer-stencil-data","MPI");
   int timerMap = phiprof::initializeTimer("compute-mapping");
   int timerUpdateRemote=phiprof::initializeTimer("update-remote","MPI");
@@ -67,6 +68,14 @@ void calculateSpatialTranslation(
   int timerZero = phiprof::initializeTimer("zero-target-grid");
   int timerBarrier  = phiprof::initializeTimer("omp-barrier");
   
+  // Reserve space for spatial neighbors of cells. Separated for
+  // translation to enable neighbor computation and tranlation to
+  // thread over spatial cells and velocity blocks, respectively.
+  const size_t sourceNeighborsSize = 1 + 2 * VLASOV_STENCIL_WIDTH;
+  const size_t targetNeighborsSize = 3;
+  std::vector<SpatialCell*> sourceNeighbors(sourceNeighborsSize * localPropagatedCellsId.size());
+  std::vector<SpatialCell*> targetNeighbors(targetNeighborsSize * localPropagatedCellsId.size());
+
 
 
 #pragma omp parallel
@@ -91,6 +100,14 @@ void calculateSpatialTranslation(
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
+      phiprof::start(timerNeighbors);
+#pragma omp for nowait 
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	compute_spatial_source_neighbors(mpiGrid, localPropagatedCellsId[c], 2, sourceNeighbors.data() + c * sourceNeighborsSize);
+	compute_spatial_target_neighbors(mpiGrid, localPropagatedCellsId[c], 2, targetNeighbors.data() + c * targetNeighborsSize);
+      }
+      phiprof::stop(timerNeighbors);
+
 #pragma omp master
       {
 	phiprof::start(timerTrans);
@@ -103,7 +120,10 @@ void calculateSpatialTranslation(
 
       phiprof::start(timerMap);
       for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
-	trans_map_1d(mpiGrid, localPropagatedCellsId[c], 2, dt,popID); // map along z//
+	trans_map_1d(mpiGrid, localPropagatedCellsId[c], 
+		     sourceNeighbors.data() + c * sourceNeighborsSize, 
+		     targetNeighbors.data() + c * targetNeighborsSize, 
+		     2, dt,popID); // map along z//
       }
       phiprof::stop(timerMap);
 #pragma omp master
@@ -150,6 +170,17 @@ void calculateSpatialTranslation(
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
+
+      phiprof::start(timerNeighbors);
+#pragma omp for nowait 
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	compute_spatial_source_neighbors(mpiGrid, localPropagatedCellsId[c], 0, sourceNeighbors.data() + c * sourceNeighborsSize);
+	compute_spatial_target_neighbors(mpiGrid, localPropagatedCellsId[c], 0, targetNeighbors.data() + c * targetNeighborsSize);
+
+      }
+      phiprof::stop(timerNeighbors);
+
+
 #pragma omp master
       {
 	phiprof::start(timerTrans);
@@ -163,7 +194,11 @@ void calculateSpatialTranslation(
 
       phiprof::start(timerMap);
       for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
-	trans_map_1d(mpiGrid,localPropagatedCellsId[c], 0, dt,popID); // map along x//
+	trans_map_1d(mpiGrid, localPropagatedCellsId[c], 
+		     sourceNeighbors.data() + c * sourceNeighborsSize, 
+		     targetNeighbors.data() + c * targetNeighborsSize, 
+		     0, dt,popID); // map along x
+
       }
       phiprof::stop(timerMap);
 #pragma omp master
@@ -213,6 +248,14 @@ void calculateSpatialTranslation(
 	localTargetGridGenerated=true;
       }
       phiprof::stop(timerCreate);
+      phiprof::start(timerNeighbors);
+#pragma omp for nowait 
+      for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
+	compute_spatial_source_neighbors(mpiGrid, localPropagatedCellsId[c], 1, sourceNeighbors.data() + c * sourceNeighborsSize);
+	compute_spatial_target_neighbors(mpiGrid, localPropagatedCellsId[c], 1, targetNeighbors.data() + c * targetNeighborsSize);
+
+      }
+      phiprof::stop(timerNeighbors);
 #pragma omp master
       {
 	phiprof::start(timerTrans);
@@ -226,7 +269,10 @@ void calculateSpatialTranslation(
 
       phiprof::start(timerMap);
       for (size_t c=0; c<localPropagatedCellsId.size(); ++c) {
-	trans_map_1d(mpiGrid,localPropagatedCellsId[c], 1, dt,popID); // map along y//
+	trans_map_1d(mpiGrid, localPropagatedCellsId[c], 
+		     sourceNeighbors.data() + c * sourceNeighborsSize, 
+		     targetNeighbors.data() + c * targetNeighborsSize, 
+		     1, dt,popID); // map along y
       }
       phiprof::stop(timerMap);
 #pragma omp master
