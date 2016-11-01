@@ -81,9 +81,6 @@ void calculateSpatialTranslation(
 	mpiGrid.start_remote_neighbor_copy_updates(VLASOV_SOLVER_Z_NEIGHBORHOOD_ID);
 	phiprof::stop(timerTrans);
       }
-      phiprof::start(timerBarrier);
-#pragma omp barrier
-      phiprof::stop(timerBarrier);
 	 
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
@@ -115,7 +112,6 @@ void calculateSpatialTranslation(
 	mpiGrid.wait_remote_neighbor_copy_update_sends();
 	phiprof::stop(timerTrans);
       }
-
       phiprof::start(timerBarrier);
 #pragma omp barrier
       phiprof::stop(timerBarrier);
@@ -128,11 +124,12 @@ void calculateSpatialTranslation(
       clearTargetGrid(mpiGrid,remoteTargetCellsz);
       phiprof::stop(timerClear);
       swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
-      phiprof::start(timerZero);
-      zeroTargetGrid(mpiGrid, local_target_cells);
-      phiprof::stop(timerZero);
+      if(P::xcells_ini > 1 || P::ycells_ini > 1 ){
+	phiprof::start(timerZero);
+	zeroTargetGrid(mpiGrid, local_target_cells);
+	phiprof::stop(timerZero);
+      }
     }
-
     // ------------- SLICE - map dist function in X --------------- //
     if(P::xcells_ini > 1 ){
 
@@ -143,9 +140,7 @@ void calculateSpatialTranslation(
 	mpiGrid.start_remote_neighbor_copy_updates(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
 	phiprof::stop(timerTrans);
       }
-      phiprof::start(timerBarrier);
-#pragma omp barrier
-      phiprof::stop(timerBarrier);
+
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
       phiprof::start(timerCreate);
@@ -189,9 +184,11 @@ void calculateSpatialTranslation(
       clearTargetGrid(mpiGrid,remoteTargetCellsx);
       phiprof::stop(timerClear);
       swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
-      phiprof::start(timerZero);
-      zeroTargetGrid(mpiGrid, local_target_cells);
-      phiprof::stop(timerZero);
+      if(P::ycells_ini > 1 ){
+	phiprof::start(timerZero);
+	zeroTargetGrid(mpiGrid, local_target_cells);
+	phiprof::stop(timerZero);
+      }
     }
    
 
@@ -206,14 +203,9 @@ void calculateSpatialTranslation(
 	mpiGrid.start_remote_neighbor_copy_updates(VLASOV_SOLVER_X_NEIGHBORHOOD_ID);
 	phiprof::stop(timerTrans);
       }
-      phiprof::start(timerBarrier);
-#pragma omp barrier
-      phiprof::stop(timerBarrier);
-
      
       // generate target grid in the temporary arrays, same size as
       // original one. We only need to create these in target cells
-
       phiprof::start(timerCreate);
       createTargetGrid(mpiGrid,remoteTargetCellsy,popID);
       if(!localTargetGridGenerated){ 
@@ -255,9 +247,6 @@ void calculateSpatialTranslation(
       clearTargetGrid(mpiGrid,remoteTargetCellsy);
       phiprof::stop(timerClear);
       swapTargetSourceGrid(mpiGrid, local_target_cells,popID);
-      phiprof::start(timerZero);
-      zeroTargetGrid(mpiGrid, local_target_cells);
-      phiprof::stop(timerZero);
     }
    
 
